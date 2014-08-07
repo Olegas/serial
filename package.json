@@ -1,0 +1,14 @@
+{
+  "name": "serial",
+  "version": "0.0.1",
+  "description": "A DSL to perform serial interchange (i.e. using AT-commands with modem on some UART port)",
+  "main": "index.js",
+  "keywords": [ "tessel", "serial", "uart", "stream", "at-commands" ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Oleg Elifantiev <oleg@elifantiev.ru>",
+  "dependencies": {
+    "chunking-streams": "0.0.6"
+  }
+}
