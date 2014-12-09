@@ -20,7 +20,7 @@ Use it to interact with some serial device on a port, represented by duplex stre
     at('Z');    // ATZ
     wait('OK');
     label('waitIncoming');
-    timeout(60000);
+    timeout(60000); // Or use 0 for infinite timeout
     wait('RING');
     wait(/\+CLIP: "([^"]+)"/); // RegExps are supported
     perform(function(line, match, match0) {
@@ -29,11 +29,16 @@ Use it to interact with some serial device on a port, represented by duplex stre
     });
     ifNotOk('hangup');
     at('A');    // ATA
-    // do something with accepted call
+    performAsync(function(done) {
+       // do something with accepted call
+       playAudioAsync(done);
+    });
     label('hangup');
     at('H0'); // ATH0
     goto('waitIncoming');
 
+  }, function(err) {
+    // when script is finished
   });
 ```
 
