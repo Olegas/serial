@@ -1,14 +1,25 @@
 {
-  "name": "serial",
-  "version": "0.0.1",
+  "name": "uart-commander",
+  "version": "0.0.2",
   "description": "A DSL to perform serial interchange (i.e. using AT-commands with modem on some UART port)",
   "main": "index.js",
-  "keywords": [ "tessel", "serial", "uart", "stream", "at-commands" ],
+  "keywords": [
+    "tessel",
+    "serial",
+    "uart",
+    "stream",
+    "at-commands"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Oleg Elifantiev <oleg@elifantiev.ru>",
   "dependencies": {
     "chunking-streams": "0.0.6"
+  },
+  "devDependencies": {
+    "mocha": "~1.21.4",
+    "sinon": "~1.10.3",
+    "chai": "~1.9.1"
   }
 }

@@ -1,15 +1,21 @@
 var chunkingStreams = require('chunking-streams');
 var Chunker = chunkingStreams.SeparatorChunker;
+var global = (function(){ return this || (1,eval)(this)})();
 
-module.exports = function(uart, source) {
+function nop() {}
 
-   var global = (function(){ return this || (1,eval)(this)})();
+module.exports = function(uart, source, end) {
 
    var sequence = [];
 
    initContext(global, sequence);
 
-   source.apply(global);
+   try {
+      source.apply(global);
+   } catch (e) {
+      end && end(e);
+      return;
+   }
 
    var state = {
       _mode: '',
@@ -29,6 +35,10 @@ module.exports = function(uart, source) {
          this._lines.push(chunk.toString());
       },
       stopUntil: function(handlerLine, handlerRaw) {
+
+         if (handlerLine && !handlerRaw) {
+            handlerRaw = handlerLine;
+         }
 
          var fin = function() {
             this._async = false;
@@ -61,11 +71,13 @@ module.exports = function(uart, source) {
             }
 
          }.bind(this), 10);
-         this._timer = setTimeout(function(){
-            fin();
-            this._lastResult = false;
-            throw 'timeout';
-         }.bind(this), this._timeout);
+         if (this._timeout) {
+            this._timer = setTimeout(function(){
+               fin();
+               this._lastResult = false;
+               throw new Error('timeout');
+            }.bind(this), this._timeout);
+         }
       }
    };
 
@@ -74,15 +86,42 @@ module.exports = function(uart, source) {
       this._raw += chunk.toString();
    }.bind(state);
 
+   // TODO terminate on stream end
+
+   function finalize(e) {
+      clearInterval(state._interval);
+      clearTimeout(state._timer);
+      state._source.unpipe(state._chunker);
+      state._source.removeListener('data', state._rawHandler);
+      typeof end == 'function' && end(e);
+   }
+
    function nextStep() {
       var fn = sequence[++state._step];
       if (fn) {
-         fn.call(state);
-         if (!state._async) {
-            setImmediate(nextStep);
+         try {
+            fn.call(state);
+            if (!state._async) {
+               setImmediate(nextStep);
+            }
+         } catch (e) {
+            finalize(e);
          }
+      } else {
+         setImmediate(finalize);
       }
    }
+
+   (function dryRun() {
+      sequence.forEach(function(f, step){
+         state._step = step;
+         if (f.immediate) {
+            f.call(state);
+            sequence[step] = nop;
+         }
+      });
+      state._step = -1;
+   })();
 
    nextStep();
 };
@@ -94,36 +133,59 @@ function initContext(context, sequence) {
    Object.keys(fns).forEach(function(name){
       context[name] = function() {
          var a = Array.prototype.slice.call(arguments);
-         sequence.push(function() {
+         var f = function() {
             fns[name].apply(this, a);
-         });
+         };
+         f.immediate = fns[name].immediate;
+         sequence.push(f);
       }
    });
-
 
 }
 
 function functions() {
-   return {
+   var f = {
+      goto: function(label) {
+         if (!(label in this._labels)) {
+            throw new Error('No such label: ' + label);
+         }
+         this._step = this._labels[label];
+      },
+      any: function() {
+         console.warn('UART-commander "any" function is used but it is not implemented yet');
+      },
+      on: function() {
+         console.warn('UART-commander "on" function is used but it is not implemented yet');
+      },
       ctrlz: function() {
          this._source.write(String.fromCharCode(26));
       },
       at: function(cmd) {
-         cmd = cmd.replace(/\$(\d)/, function(m, i){
-            return this._lastMatch[i];
-         }.bind(this));
+         if (typeof cmd == 'function') {
+            cmd = cmd();
+         }
+         if (typeof cmd == 'string') {
+            cmd = cmd.replace(/\$(\d)/, function(m, i){
+               return this._lastMatch[i];
+            }.bind(this));
+         }
          this._source.write('AT' + cmd + '\r\n');
       },
       write: function(data) {
          if (typeof data == 'function') {
             data = data();
          }
-         data = data.replace(/\$(\d)/, function(m, i){
-            return this._lastMatch[i];
-         }.bind(this));
+         if (typeof data == 'string') {
+            data = data.replace(/\$(\d)/, function(m, i){
+               return this._lastMatch[i];
+            }.bind(this));
+         }
          this._source.write(data);
       },
       wait: function() {
+         if (!this._mode) {
+            throw new Error('Mode not set. Use linemode() or rawmode()');
+         }
          this._lastMatch = [];
          var whatArr = [].slice.call(arguments);
          this.stopUntil(function(line){
@@ -179,7 +241,7 @@ function functions() {
       },
       ifOk: function(label) {
          if (!(label in this._labels)) {
-            throw 'No such label: ' + label;
+            throw new Error('No such label: ' + label);
          }
          if (this._lastResult) {
             this._step = this._labels[label];
@@ -187,7 +249,7 @@ function functions() {
       },
       ifNotOk: function(label) {
          if (!(label in this._labels)) {
-            throw 'No such label: ' + label;
+            throw new Error('No such label: ' + label);
          }
          if (!this._lastResult) {
             this._step = this._labels[label];
@@ -207,12 +269,27 @@ function functions() {
          this._source.unpipe(this._chunker);
          this._source.on('data', this._rawHandler);
       },
+      performAsync: function(f) {
+         var lock;
+         lock = true;
+         this.stopUntil(function(){
+            return !lock;
+         });
+         f.apply(null, [this._lastLine].concat(this._lastMatch || [], function(err, res) {
+            if (err) {
+               throw err;
+            } else {
+               this._lastResult = res;
+            }
+            lock = false;
+         }.bind(this)));
+      },
       perform: function(f) {
          this._lastResult = f.apply(null, [this._lastLine].concat(this._lastMatch || []));
       },
       consumeBytes: function(n) {
          if (this._mode !== 'raw') {
-            throw 'consumeBytes can only be used in RAW mode';
+            throw new Error('consumeBytes can only be used in RAW mode');
          }
          if (typeof n == 'function') {
             n = n();
@@ -226,7 +303,7 @@ function functions() {
          n = +n;
 
          if (n <= 0) {
-            throw 'bytes amount must be greater than zero';
+            throw new Error('bytes amount must be greater than zero');
          }
 
          var res = '';
@@ -242,4 +319,6 @@ function functions() {
          }.bind(this));
       }
    };
+   f.label.immediate = true;
+   return f;
 }
