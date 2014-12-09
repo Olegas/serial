@@ -10,11 +10,11 @@ A "DSL" to perform serial interchange (i.e. using AT-commands with modem on some
 Use it to interact with some serial device on a port, represented by duplex stream.
 
 ```javascript
-  var serial = require('serial');
+  var cmd = require('uart-commander');
 
   var uart = getUARTStreamSomehow();
 
-  serial(uart, function() {
+  cmd(uart, function() {
 
     linemode();
     at('Z');    // ATZ
