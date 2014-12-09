@@ -11,7 +11,9 @@
     "at-commands"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+     "instrument": "node ./node_modules/.bin/istanbul instrument --output lib-cov --no-compact --variable global.__coverage__ lib",
+     "test-cov": "npm run-script instrument && COVER=CMNDR ISTANBUL_REPORTERS=lcovonly node ./node_modules/.bin/mocha -R mocha-istanbul",
+     "test": "node ./node_modules/mocha/bin/mocha -R spec"
   },
   "author": "Oleg Elifantiev <oleg@elifantiev.ru>",
   "dependencies": {
@@ -20,6 +22,9 @@
   "devDependencies": {
     "mocha": "~1.21.4",
     "sinon": "~1.10.3",
-    "chai": "~1.9.1"
+    "chai": "~1.9.1",
+    "istanbul": "0.1.44",
+    "mocha-istanbul": "0.2.0",
+    "coveralls": "2.3.0"
   }
 }
