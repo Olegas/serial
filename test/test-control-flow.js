@@ -150,4 +150,83 @@ describe('Control flow', function(){
 
    });
 
+   describe('performAsync(function(*, cb))', function(){
+
+      it('performs function and waits for callback, until then execution is stopped', function(done){
+
+         var mustCall = sinon.spy();
+
+         cmd(stream, function(){
+
+            perform(mustCall);
+            performAsync(function(s, done){
+               assert(mustCall.callCount == 1);
+               done();
+            });
+            perform(mustCall);
+
+         }, function(e){
+            assert(mustCall.callCount == 2, "Correct step count");
+            done();
+         });
+
+      });
+
+      it('if callback(err) - execution stops', function(done){
+
+         cmd(stream, function(){
+
+            performAsync(function(s, done){
+               done('async error');
+            });
+
+         }, function(e){
+            assert(e == 'async error');
+            done();
+         });
+
+      });
+
+      it('if callback() - execution continues, last result is set to `true`', function(done){
+
+         var mustNotCall = sinon.spy();
+
+         cmd(stream, function(){
+
+            performAsync(function(s, done){
+               done();
+            });
+            ifOk('label');
+            perform(mustNotCall);
+            label('label')
+
+         }, function(){
+            assert(!mustNotCall.called);
+            done();
+         });
+
+      });
+
+      it('if callback(null, res) - execution continues, last result is set to res', function(done){
+
+         var mustCall = sinon.spy();
+
+         cmd(stream, function(){
+
+            performAsync(function(s, done){
+               done(null, false);
+            });
+            ifOk('label');
+            perform(mustCall);
+            label('label')
+
+         }, function(){
+            assert(mustCall.called);
+            done();
+         });
+
+      });
+
+   })
+
 });
