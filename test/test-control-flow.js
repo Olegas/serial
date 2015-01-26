@@ -17,19 +17,13 @@ describe('Control flow', function(){
    });
 
    describe('label(string)', function(){
+
       it('Sets label', function(done){
          cmd(stream, function(){
             label('xxx');
          }, done)
       });
 
-      it('works in any direction', function(){
-         cmd(stream, function(){
-            goto('l2');
-            label('l1');
-
-         })
-      })
    });
 
 
@@ -147,6 +141,64 @@ describe('Control flow', function(){
          })
 
       });
+
+   });
+
+   describe('goto(label)', function() {
+
+      it('passes control to specified label', function(done) {
+
+         var mustNotCall = sinon.spy(), mustCall = sinon.spy();
+
+         cmd(stream, function(){
+
+            goto('label');
+            perform(mustNotCall);
+            label('label');
+            perform(mustCall);
+
+         }, function(){
+            assert(!mustNotCall.called);
+            assert(mustCall.called);
+            done();
+         });
+
+      });
+
+      it('if label is not - throws error', function(done) {
+
+         cmd(stream, function(){
+
+            goto('labelX');
+
+         }, function(e){
+            assert(e);
+            done();
+         });
+
+      });
+
+      it('works in any direction', function(done){
+
+         cmd(stream, function(){
+
+            perform(function(){
+               return false;
+            });
+            label('first');
+            ifOk('end');
+            perform(function(){
+               return true;
+            });
+            goto('first');
+            label('end');
+
+         }, function(){
+            done();
+         });
+
+      })
+
 
    });
 
